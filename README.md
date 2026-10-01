@@ -1,9 +1,9 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M1 tracing core** on the M0 foundation: four health-only FastAPI apps,
-PostgreSQL schema/migrations, a minimal React shell, and custom tracing primitives.
-Business HTTP integration, span delivery and the dashboard are later milestones.
+the **M2 distributed propagation** milestone: custom tracing primitives and the normal
+Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and a minimal
+React shell. Collector delivery, persisted telemetry and the dashboard are later milestones.
 
 ## Local stack
 
@@ -25,6 +25,16 @@ Frontend: http://localhost:5173. Trace backend health: http://localhost:8000/hea
 Order health: http://localhost:8001/health. Payment and Notification are internal.
 PostgreSQL has no host port and stores data in the `postgres-data` named volume.
 Migrations run explicitly; app startup never creates tables.
+
+Trigger a normal request in PowerShell:
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:8001/orders -Method Post -ContentType application/json -Body '{"item":"demo-item","scenario":"normal"}'
+```
+
+The response contains the trace ID. In M2, completed spans are discarded by default;
+the tests inject a bounded in-memory completion hook. No collector endpoint or span
+export queue exists yet. Slow/error scenario names are validated but return 501 until M5.
 
 ## Verification
 
@@ -60,3 +70,5 @@ record resolved dependencies. The backend Docker image includes the dev tools fo
 To stop the stack: `docker compose down` (preserves the database volume).
 
 See [foundation notes](docs/foundation.md) for component roles and M0 boundaries.
+See [M1 verification](docs/m1-verification.md) and [M2 verification](docs/m2-verification.md)
+for gate evidence and learning notes.

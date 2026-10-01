@@ -1,4 +1,4 @@
-"""Small custom tracing primitives; HTTP integration is added in M2."""
+"""Small custom tracing primitives and HTTP instrumentation."""
 
 from microtrace_sdk.context import get_current_span
 from microtrace_sdk.models import SpanContext, SpanKind, SpanStatus
