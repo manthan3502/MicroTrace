@@ -90,3 +90,67 @@ def test_server_failure_finishes_and_resets_context_without_sensitive_errors(rai
     assert failed.status == SpanStatus.ERROR
     assert failed.attributes["http.status_code"] == 500
     assert "private" not in failed.model_dump_json()
+
+
+@pytest.mark.parametrize("direction", ["inbound", "outbound"])
+def test_actual_task_cancellation_finishes_and_restores_prior_context(direction):
+    completed = []
+    tracer = Tracer("audit", completed.append)
+
+    async def exercise():
+        entered = asyncio.Event()
+        restored = []
+
+        async def suspended(_):
+            entered.set()
+            await asyncio.Event().wait()
+
+        app = create_app(completed.append)
+
+        @app.get("/suspended")
+        async def route():
+            await suspended(None)
+
+        with tracer.start_span("ambient") as ambient:
+
+            async def worker():
+                try:
+                    if direction == "inbound":
+                        async with httpx.AsyncClient(
+                            transport=httpx.ASGITransport(app=app), base_url="http://test"
+                        ) as client:
+                            await client.get("/suspended")
+                    else:
+                        async with httpx.AsyncClient(
+                            transport=httpx.MockTransport(suspended)
+                        ) as client:
+                            await traced_request(
+                                client,
+                                tracer,
+                                "POST",
+                                "http://test/charge",
+                                peer_service="payment-service",
+                                route="/charge",
+                                json={},
+                            )
+                finally:
+                    restored.append(get_current_span() is ambient)
+
+            task = asyncio.create_task(worker())
+            await entered.wait()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert restored == [True]
+            assert get_current_span() is ambient
+            assert len(completed) == 1
+            assert completed[0].status == SpanStatus.ERROR
+            if direction == "inbound":
+                assert completed[0].parent_span_id is None
+                assert completed[0].trace_id != ambient.context.trace_id
+            else:
+                assert completed[0].parent_span_id == ambient.context.span_id
+        assert get_current_span() is None
+        assert len(completed) == 2
+
+    asyncio.run(exercise())

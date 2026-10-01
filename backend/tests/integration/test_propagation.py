@@ -24,6 +24,8 @@ class RecordingSink:
 
     def __init__(self):
         self.spans = []
+        self.flags = {}
+        self.headers = []
         self.lock = threading.Lock()
 
     def __call__(self, span):
@@ -31,6 +33,7 @@ class RecordingSink:
             if len(self.spans) >= 1000:
                 raise RuntimeError("Test capture limit reached")
             self.spans.append(span)
+            self.flags[span.span_id] = get_current_span().context.trace_flags
 
     def trace(self, trace_id, count=8):
         deadline = time.monotonic() + 5
@@ -41,6 +44,17 @@ class RecordingSink:
                 return found
             time.sleep(0.005)
         raise AssertionError(f"Expected {count} completed spans, got {len(found)}")
+
+
+class CaptureHeaders:
+    def __init__(self, app, sink, service):
+        self.app, self.sink, self.service = app, sink, service
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            with self.sink.lock:
+                self.sink.headers.append((self.service, dict(scope["headers"]).get(b"traceparent")))
+        await self.app(scope, receive, send)
 
 
 @contextmanager
@@ -73,8 +87,10 @@ def live_services():
     payment = payment_app(sink)
     notification = notification_app(sink)
     with ExitStack() as stack:
-        payment_url = stack.enter_context(serve(payment))
-        notification_url = stack.enter_context(serve(notification))
+        payment_url = stack.enter_context(serve(CaptureHeaders(payment, sink, "payment-service")))
+        notification_url = stack.enter_context(
+            serve(CaptureHeaders(notification, sink, "notification-service"))
+        )
         order = order_app(sink, payment_url=payment_url, notification_url=notification_url)
         order_url = stack.enter_context(serve(order))
         yield sink, order_url, payment_url, notification_url, (order, payment, notification)
@@ -165,7 +181,7 @@ def test_sequential_requests_have_independent_ids_and_reuse_lifecycle_client(liv
     assert len(set(trace_ids)) == 2
 
 
-@pytest.mark.parametrize("flags", ["00", "01", "ab"])
+@pytest.mark.parametrize("flags", ["00", "01", "ab", "ff"])
 def test_valid_incoming_traceparent_continues_real_http_trace(live_services, flags):
     sink, url, _, _, _ = live_services
     trace_id, parent_id = new_trace_id(), new_span_id()
@@ -177,7 +193,21 @@ def test_valid_incoming_traceparent_continues_real_http_trace(live_services, fla
     )
     assert response.status_code == 200
     assert response.json()["trace_id"] == trace_id
-    assert_expected_tree(sink.trace(trace_id), trace_id, root_parent=parent_id)
+    spans = sink.trace(trace_id)
+    assert_expected_tree(spans, trace_id, root_parent=parent_id)
+    assert {sink.flags[s.span_id] for s in spans} == {flags}
+    for service in ("payment-service", "notification-service"):
+        client = next(
+            s
+            for s in spans
+            if s.span_kind == SpanKind.CLIENT and s.attributes["peer.service"] == service
+        )
+        server = next(
+            s for s in spans if s.span_kind == SpanKind.SERVER and s.service_name == service
+        )
+        actual = [header for name, header in sink.headers if name == service]
+        assert actual == [f"00-{trace_id}-{client.span_id}-{flags}".encode()]
+        assert sink.flags[server.span_id] == flags
 
 
 @pytest.mark.parametrize("header", ["malformed", "00-" + "0" * 32 + "-" + "1" * 16 + "-01"])

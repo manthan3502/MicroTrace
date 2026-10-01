@@ -1,10 +1,19 @@
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from types import MappingProxyType
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from microtrace_sdk.ids import valid_id
 
@@ -73,7 +82,7 @@ class FinishedSpan(BaseModel):
     status: SpanStatus
     error_type: str | None = Field(max_length=128)
     error_message: str | None = Field(max_length=512)
-    attributes: dict[str, Scalar]
+    attributes: Mapping[str, Scalar]
 
     @field_validator("trace_id", "span_id", "parent_span_id")
     @classmethod
@@ -87,7 +96,18 @@ class FinishedSpan(BaseModel):
     @field_validator("attributes", mode="before")
     @classmethod
     def attributes_valid(cls, value):
+        if not isinstance(value, Mapping):
+            raise ValueError("Attributes must be an object")
         return validate_attributes(value)
+
+    @field_validator("attributes")
+    @classmethod
+    def immutable_attributes(cls, value):
+        return MappingProxyType(dict(value))
+
+    @field_serializer("attributes")
+    def serialize_attributes(self, value):
+        return dict(value)
 
     @model_validator(mode="after")
     def timing_valid(self):

@@ -299,3 +299,21 @@ def test_finished_model_rejects_invalid_timing_and_enum():
     ):
         with pytest.raises(ValueError):
             FinishedSpan(**{**data, **change})
+
+
+def test_finished_attributes_are_detached_immutable_and_json_serializable():
+    with Tracer("service").start_span("operation") as span:
+        span.set_attribute("order.id", "original")
+        result = span.finish()
+    for key in ("order.id", "Authorization"):
+        with pytest.raises(TypeError):
+            result.attributes[key] = "changed"
+    original = {"order.id": "original"}
+    snapshot = FinishedSpan(**{**result.model_dump(), "attributes": original})
+    original["order.id"] = "changed"
+    original["Authorization"] = "secret"
+    assert snapshot.attributes == {"order.id": "original"}
+    serialized = snapshot.model_dump(mode="json")
+    serialized["attributes"]["order.id"] = "changed"
+    assert snapshot.attributes["order.id"] == "original"
+    assert FinishedSpan.model_validate_json(snapshot.model_dump_json()) == snapshot
