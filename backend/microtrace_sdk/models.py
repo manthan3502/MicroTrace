@@ -68,7 +68,7 @@ def validate_attributes(attributes: dict[str, Scalar]) -> dict[str, Scalar]:
 class FinishedSpan(BaseModel):
     """Completed telemetry snapshot; internal clocks and flags are never exported."""
 
-    model_config = ConfigDict(frozen=True, strict=True)
+    model_config = ConfigDict(frozen=True, strict=True, extra="forbid")
 
     trace_id: str
     span_id: str
@@ -78,7 +78,7 @@ class FinishedSpan(BaseModel):
     span_kind: SpanKind
     start_time: datetime
     end_time: datetime
-    duration_us: int = Field(ge=0)
+    duration_us: int = Field(ge=0, le=9223372036854775807)
     status: SpanStatus
     error_type: str | None = Field(max_length=128)
     error_message: str | None = Field(max_length=512)

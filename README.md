@@ -1,9 +1,9 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M2 distributed propagation** milestone: custom tracing primitives and the normal
+the **M3 persistent ingestion** milestone: custom tracing primitives and the normal
 Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and a minimal
-React shell. Collector delivery, persisted telemetry and the dashboard are later milestones.
+React shell. Bounded export and collector ingestion persist completed spans. Query/reconstruction and the dashboard are later milestones.
 
 ## Local stack
 
@@ -32,10 +32,16 @@ Trigger a normal request in PowerShell:
 Invoke-RestMethod -Uri http://localhost:8001/orders -Method Post -ContentType application/json -Body '{"item":"demo-item","scenario":"normal"}'
 ```
 
-The response contains the trace ID. In M2, completed spans are discarded by default;
-the tests inject a bounded in-memory completion hook. No collector endpoint or span
-export queue exists yet. Slow/error scenario names are validated but return 501 until M5.
+The response contains the trace ID. Each demo process uses one bounded queue (default
+256), one exporter worker, a 1-second delivery timeout, no retries and a bounded
+2-second shutdown drain. Queue-full/delivery failures drop telemetry with controlled
+warnings; business requests do not wait for delivery. The worker reuses the lifespan
+HTTPX client and receives immutable completed data without reading request context.
 
+POST /api/v1/spans accepts one validated JSON span (maximum 64 KiB), returns 201 stored
+or 200 duplicate, and preserves the original on duplicates. There is still only the
+spans table; a parent has no FK. Test hooks replace export only in instrumentation tests.
+Slow/error scenario names are validated but return 501 until M5.
 ## Verification
 
 ```sh
