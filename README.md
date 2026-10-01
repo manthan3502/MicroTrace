@@ -1,8 +1,9 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M0 foundation only**: four health-only FastAPI apps, PostgreSQL schema/migrations,
-and a minimal React shell. Tracing, business APIs and the dashboard are later milestones.
+the **M1 tracing core** on the M0 foundation: four health-only FastAPI apps,
+PostgreSQL schema/migrations, a minimal React shell, and custom tracing primitives.
+Business HTTP integration, span delivery and the dashboard are later milestones.
 
 ## Local stack
 
