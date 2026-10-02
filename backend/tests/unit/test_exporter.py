@@ -69,20 +69,29 @@ def test_failed_delivery_dropped_once_without_retry_and_safe_warning(outcome, ca
 
 def test_queue_full_drops_newest_immediately_with_controlled_warning(caplog):
     async def exercise():
-        exporter = SpanExporter("http://collector", capacity=1)
+        exporter = SpanExporter("http://collector", capacity=2)
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(lambda _: httpx.Response(201))
         ) as client:
             exporter.start(client)
-            first = finished()
-            exporter.enqueue(first)
+            oldest = [finished(), finished()]
+            newest = [finished() for _ in range(100)]
+
+            def identities(values):
+                return [(s.trace_id, s.span_id) for s in values]
+
+            assert len(set(identities(oldest + newest))) == 102
+            for span in oldest:
+                exporter.enqueue(span)
             start = time.monotonic()
-            for _ in range(100):
-                exporter.enqueue(first)
+            for span in newest:
+                exporter.enqueue(span)
             assert time.monotonic() - start < 0.1
-            assert exporter.queue.qsize() == 1
-            assert exporter.queue.get_nowait() is first
-            exporter.queue.task_done()
+            assert exporter.queue.qsize() == 2
+            retained = [exporter.queue.get_nowait(), exporter.queue.get_nowait()]
+            assert identities(retained) == identities(oldest)
+            for _ in retained:
+                exporter.queue.task_done()
             assert exporter.dropped == 100
             await exporter.close()
         assert len(caplog.records) == 1

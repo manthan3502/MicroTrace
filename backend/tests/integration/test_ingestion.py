@@ -1,3 +1,5 @@
+import asyncio
+import json
 import time
 from contextlib import ExitStack
 
@@ -11,8 +13,92 @@ from microtrace_sdk.models import FinishedSpan
 from services.notification.main import create_app as notification_app
 from services.order.main import create_app as order_app
 from services.payment.main import create_app as payment_app
+from services.trace_backend import ingest as ingestion
 from services.trace_backend.db_models import spans
 from tests.integration.test_propagation import assert_expected_tree, serve
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {field: "invalid\x00text"}
+        for field in ("service_name", "operation_name", "error_type", "error_message")
+    ]
+    + [{"attributes": {"order.\x00id": "value"}}, {"attributes": {"order.id": "bad\x00value"}}],
+)
+def test_nul_rejected_before_database_and_collector_stays_healthy(
+    collector, db_engine, monkeypatch, change
+):
+    calls = []
+
+    def forbidden_insert(*args):
+        calls.append(args)
+        raise AssertionError("Invalid telemetry reached storage")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(ingestion, "store_span", forbidden_insert)
+        response = collector.post("/api/v1/spans", json={**payload(), **change})
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Invalid span payload"}
+        assert calls == []
+    assert collector.get("/health").status_code == 200
+    assert collector.post("/api/v1/spans", json=payload()).status_code == 201
+    with db_engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(spans)) == 1
+
+
+def test_valid_unicode_text_round_trips(collector):
+    data = payload()
+    for field in ("service_name", "operation_name", "error_type", "error_message"):
+        data[field] = "परीक्षण — café 😀"
+    data["attributes"] = {"order.id": "注文 😀"}
+    assert collector.post("/api/v1/spans", json=data).status_code == 201
+    actual = collector.get("/api/v1/traces/" + data["trace_id"]).json()["spans"][0]
+    for field in ("service_name", "operation_name", "error_type", "error_message", "attributes"):
+        assert actual[field] == data[field]
+
+
+@pytest.mark.parametrize("size,expected", [(65536, 201), (65537, 413)])
+def test_chunked_request_size_boundary(collector_app, size, expected):
+    body = json.dumps(payload()).encode()
+    body += b" " * (size - len(body))
+
+    async def request():
+        chunks = [body[:32768], body[32768:]]
+        messages = []
+        received = 0
+
+        async def receive():
+            nonlocal received
+            received += 1
+            return {"type": "http.request", "body": chunks.pop(0), "more_body": bool(chunks)}
+
+        async def send(message):
+            messages.append(message)
+
+        await collector_app(
+            {
+                "type": "http",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/api/v1/spans",
+                "raw_path": b"/api/v1/spans",
+                "query_string": b"",
+                "headers": [(b"content-type", b"application/json")],
+                "client": ("127.0.0.1", 1234),
+                "server": ("127.0.0.1", 8000),
+            },
+            receive,
+            send,
+        )
+        assert next(m["status"] for m in messages if m["type"] == "http.response.start") == expected
+        assert received == 2
+
+    asyncio.run(request())
 
 
 def payload():
@@ -168,10 +254,18 @@ def test_concurrent_duplicate_ingestion_keeps_one_row(collector_app, db_engine):
     with serve(collector_app) as url:
 
         def submit(_):
-            return httpx.post(url + "/api/v1/spans", json=data, timeout=5).status_code
+            operation = f"writer-{_}"
+            response = httpx.post(
+                url + "/api/v1/spans", json={**data, "operation_name": operation}, timeout=5
+            )
+            return operation, response.status_code
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            codes = list(pool.map(submit, range(8)))
+            results = list(pool.map(submit, range(8)))
+    codes = [status for _, status in results]
     assert codes.count(201) == 1 and codes.count(200) == 7
     with db_engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(spans)) == 1
+        assert connection.scalar(select(spans.c.operation_name)) == next(
+            operation for operation, status in results if status == 201
+        )

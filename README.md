@@ -72,7 +72,7 @@ bounds and collector-down behavior are verified by the backend regression suite.
 ## Verification
 
 ```sh
-docker compose exec -T trace-backend pytest
+docker compose exec -T trace-backend sh -c 'MICROTRACE_TEST_DATABASE_URL="$DATABASE_URL" pytest'
 docker compose exec -T trace-backend ruff check .
 docker compose exec -T trace-backend ruff format --check .
 docker compose exec -T trace-backend sh -c 'MICROTRACE_TEST_DATABASE_URL="$DATABASE_URL" pytest -m integration'
@@ -92,6 +92,8 @@ The schema test reads the migrated PostgreSQL schema. Ingestion/query tests crea
 isolated disposable schemas copied from the migrated public spans table and remove them
 afterward. Existing public telemetry is preserved. Without MICROTRACE_TEST_DATABASE_URL,
 DB tests explicitly skip; a skip does not verify the database.
+The `integration` marker includes collector ingestion, query/reconstruction, schema,
+and real HTTP delivery tests. Supply the test database for the full marked set.
 
 For native development, use Python 3.12, `uv sync --locked --project backend`,
 then `uv run --locked --project backend pytest -c backend/pyproject.toml backend/tests`

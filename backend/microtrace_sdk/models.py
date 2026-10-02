@@ -23,6 +23,12 @@ ALLOWED_ATTRIBUTES = frozenset(
 )
 
 
+def reject_nul(value: str | None) -> str | None:
+    if value is not None and "\x00" in value:
+        raise ValueError("Text must not contain NUL characters")
+    return value
+
+
 class SpanKind(StrEnum):
     SERVER = "SERVER"
     CLIENT = "CLIENT"
@@ -60,6 +66,8 @@ def validate_attributes(attributes: dict[str, Scalar]) -> dict[str, Scalar]:
             raise ValueError("Attribute values must be JSON scalars")
         if isinstance(value, str) and len(value) > 256:
             raise ValueError("Attribute string is too long")
+        if isinstance(value, str):
+            reject_nul(value)
         if isinstance(value, float) and not math.isfinite(value):
             raise ValueError("Attribute number must be finite")
     return dict(attributes)
@@ -83,6 +91,11 @@ class FinishedSpan(BaseModel):
     error_type: str | None = Field(max_length=128)
     error_message: str | None = Field(max_length=512)
     attributes: Mapping[str, Scalar]
+
+    @field_validator("service_name", "operation_name", "error_type", "error_message")
+    @classmethod
+    def text_valid(cls, value):
+        return reject_nul(value)
 
     @field_validator("trace_id", "span_id", "parent_span_id")
     @classmethod

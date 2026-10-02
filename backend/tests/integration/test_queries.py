@@ -4,7 +4,7 @@ from contextlib import ExitStack
 
 import httpx
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import event, inspect, select
 from sqlalchemy.exc import OperationalError
 
 from services.notification.main import create_app as notification_app
@@ -13,6 +13,31 @@ from services.payment.main import create_app as payment_app
 from services.trace_backend.db_models import spans
 from tests.integration.test_propagation import serve
 from tests.trace_fixtures import TRACE_ID, healthy, row
+
+pytestmark = pytest.mark.integration
+
+
+def test_trace_list_snapshot_is_consistent_when_error_arrives_between_queries(collector, db_engine):
+    assert submit(collector, row(1)).status_code == 201
+    inserted = False
+
+    def late_error(connection, cursor, statement, parameters, context, executemany):
+        nonlocal inserted
+        if not inserted and "GROUP BY spans.trace_id" in statement:
+            inserted = True
+            with db_engine.begin() as writer:
+                writer.execute(spans.insert().values(**row(2, 1, status="ERROR")))
+
+    event.listen(db_engine, "after_cursor_execute", late_error)
+    try:
+        first = collector.get("/api/v1/traces?status=OK").json()["items"]
+    finally:
+        event.remove(db_engine, "after_cursor_execute", late_error)
+    assert inserted and len(first) == 1
+    assert first[0]["status"] == "OK" and first[0]["span_count"] == 1
+    assert collector.get("/api/v1/traces?status=OK").json()["items"] == []
+    updated = collector.get("/api/v1/traces?status=ERROR").json()["items"]
+    assert len(updated) == 1 and updated[0]["span_count"] == 2
 
 
 def submit(client, value):
