@@ -1,9 +1,9 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M6 dashboard** milestone: custom tracing primitives and the
-Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and a minimal
-React shell. Bounded export, collector ingestion, PostgreSQL persistence, trace queries
+the **M7 QA and CI** milestone: custom tracing primitives and the
+Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and the
+React dashboard. Bounded export, collector ingestion, PostgreSQL persistence, trace queries
 and safe reconstruction work. The dashboard uses real backend data.
 
 ## Local stack
@@ -113,6 +113,31 @@ afterward. Existing public telemetry is preserved. Without MICROTRACE_TEST_DATAB
 DB tests explicitly skip; a skip does not verify the database.
 The `integration` marker includes collector ingestion, query/reconstruction, schema,
 and real HTTP delivery tests. Supply the test database for the full marked set.
+
+Repeatable full-stack reliability and privacy checks (uses the backend Python environment):
+
+```sh
+python scripts/check_scenarios.py
+python scripts/check_system.py
+python scripts/check_repository.py
+```
+
+`check_system.py` generates a real eight-span order, checks request-body/header canaries
+against PostgreSQL and logs, stops/restores the collector, and stops/restores PostgreSQL.
+It checks business independence, sanitized database errors and exact trace persistence
+with the same named volume. It preserves existing data and restores services in `finally`
+blocks. It adds telemetry as expected; it never removes the database volume.
+Use `--docker` with an absolute executable path when Docker is not on PATH.
+The repository scan checks tracked content, historical blobs and author/committer emails;
+it does not print matched private values.
+
+[GitHub Actions](https://github.com/manthan3502/MicroTrace/actions/workflows/ci.yml)
+has backend, frontend and Compose E2E jobs. Backend CI uses a migrated PostgreSQL 16
+service and runs both the unmarked and integration test sets. Compose CI runs health,
+Gate C, all three scenarios, collector/database outage, restart and privacy checks.
+Workflow permissions are read-only, and all CI database credentials are disposable
+public test values. Hosted execution must pass before M7 is declared complete.
+See [M7 verification](docs/m7-verification.md) for local acceptance results.
 
 For native development, use Python 3.12, `uv sync --locked --project backend`,
 then `uv run --locked --project backend pytest -c backend/pyproject.toml backend/tests`
