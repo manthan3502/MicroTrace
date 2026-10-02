@@ -24,3 +24,21 @@ def db_engine():
         with admin.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
         admin.dispose()
+
+
+@pytest.fixture
+def collector_app(db_engine):
+    from services.trace_backend.database import get_engine
+    from services.trace_backend.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[get_engine] = lambda: db_engine
+    return app
+
+
+@pytest.fixture
+def collector(collector_app):
+    from fastapi.testclient import TestClient
+
+    with TestClient(collector_app) as client:
+        yield client

@@ -3,7 +3,6 @@ from contextlib import ExitStack
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 
@@ -12,9 +11,7 @@ from microtrace_sdk.models import FinishedSpan
 from services.notification.main import create_app as notification_app
 from services.order.main import create_app as order_app
 from services.payment.main import create_app as payment_app
-from services.trace_backend.database import get_engine
 from services.trace_backend.db_models import spans
-from services.trace_backend.main import create_app
 from tests.integration.test_propagation import assert_expected_tree, serve
 
 
@@ -22,19 +19,6 @@ def payload():
     with Tracer("order-service").start_span("POST /orders", SpanKind.SERVER) as span:
         span.set_attribute("http.method", "POST")
     return span.finish().model_dump(mode="json")
-
-
-@pytest.fixture
-def collector_app(db_engine):
-    app = create_app()
-    app.dependency_overrides[get_engine] = lambda: db_engine
-    return app
-
-
-@pytest.fixture
-def collector(collector_app):
-    with TestClient(collector_app) as client:
-        yield client
 
 
 def test_store_duplicate_does_not_overwrite_original(collector, db_engine):

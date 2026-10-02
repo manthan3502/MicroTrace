@@ -1,9 +1,10 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M3 persistent ingestion** milestone: custom tracing primitives and the normal
+the **M4 query and reconstruction** milestone: custom tracing primitives and the normal
 Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and a minimal
-React shell. Bounded export and collector ingestion persist completed spans. Query/reconstruction and the dashboard are later milestones.
+React shell. Bounded export, collector ingestion, PostgreSQL persistence, trace queries
+and safe reconstruction work. The dashboard remains a later milestone.
 
 ## Local stack
 
@@ -42,6 +43,32 @@ POST /api/v1/spans accepts one validated JSON span (maximum 64 KiB), returns 201
 or 200 duplicate, and preserves the original on duplicates. There is still only the
 spans table; a parent has no FK. Test hooks replace export only in instrumentation tests.
 Slow/error scenario names are validated but return 501 until M5.
+
+Queries:
+
+- GET /api/v1/traces: recent summaries; service, status and min_duration_ms filters
+  combine with AND before pagination. Default limit 50, maximum 100, offset 0.
+- GET /api/v1/traces/{trace_id}: parent-first ordered spans with depth, start offset,
+  orphan IDs and an incomplete flag. Unknown traces return 404.
+- GET /api/v1/services: sorted participating service names.
+
+Summaries use one root's monotonic duration, or the available wall-clock window when
+there is no single root. Any ERROR span makes the summary ERROR. Missing parents,
+missing/multiple roots and cycles mark telemetry incomplete independently of status.
+Trees come from IDs rather than arrival order; cycles return each available span once.
+There is no persisted traces table, retention system, auth, sampling or retry infrastructure.
+
+Gate C against the actual Compose pipeline:
+
+```powershell
+Get-Content -Raw scripts/check_gate_c.py | docker compose exec -T trace-backend python -
+```
+
+This generates a real order and verifies its eight stored spans, queries and parents.
+It also tests duplicate, child-first, orphan, shuffled and cycle telemetry. It removes
+only its synthetic contract-test traces and retains the real order trace. Exporter
+bounds and collector-down behavior are verified by the backend regression suite.
+
 ## Verification
 
 ```sh
@@ -61,8 +88,10 @@ The final command uses stdin redirection in POSIX shells. In PowerShell use:
 Get-Content -Raw scripts/check_foundation.py | docker compose exec -T trace-backend python -
 ```
 
-The schema test reads the migrated PostgreSQL schema; without
-`MICROTRACE_TEST_DATABASE_URL` it explicitly skips. A skip does not verify the database.
+The schema test reads the migrated PostgreSQL schema. Ingestion/query tests create
+isolated disposable schemas copied from the migrated public spans table and remove them
+afterward. Existing public telemetry is preserved. Without MICROTRACE_TEST_DATABASE_URL,
+DB tests explicitly skip; a skip does not verify the database.
 
 For native development, use Python 3.12, `uv sync --locked --project backend`,
 then `uv run --locked --project backend pytest -c backend/pyproject.toml backend/tests`
@@ -78,3 +107,7 @@ To stop the stack: `docker compose down` (preserves the database volume).
 See [foundation notes](docs/foundation.md) for component roles and M0 boundaries.
 See [M1 verification](docs/m1-verification.md) and [M2 verification](docs/m2-verification.md)
 for gate evidence and learning notes.
+
+See [hardening verification](docs/pre-m3-hardening-verification.md),
+[M3 verification](docs/m3-verification.md), and [M4 verification](docs/m4-verification.md)
+for exact regression results and Gate C evidence.
