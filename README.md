@@ -1,7 +1,7 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M4 query and reconstruction** milestone: custom tracing primitives and the normal
+the **M5 scenarios and reliability** milestone: custom tracing primitives and the
 Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and a minimal
 React shell. Bounded export, collector ingestion, PostgreSQL persistence, trace queries
 and safe reconstruction work. The dashboard remains a later milestone.
@@ -42,7 +42,20 @@ HTTPX client and receives immutable completed data without reading request conte
 POST /api/v1/spans accepts one validated JSON span (maximum 64 KiB), returns 201 stored
 or 200 duplicate, and preserves the original on duplicates. There is still only the
 spans table; a parent has no FK. Test hooks replace export only in instrumentation tests.
-Slow/error scenario names are validated but return 501 until M5.
+Scenarios are request-scoped: normal, slow_payment (100–3000 ms inside process-payment),
+and deterministic payment_error. Payment error returns 502 from Order, records the
+four affected spans as ERROR and skips Notification. No restart/configuration change.
+
+```sh
+python scripts/demo.py healthy
+python scripts/demo.py slow
+python scripts/demo.py error
+```
+
+Each command prints the business result, trace ID and dashboard URL. Use --order-url,
+--dashboard-url or --slow-ms when needed. The expected error demo exits successfully.
+Run `python scripts/check_scenarios.py` with the backend Python environment for real
+healthy/slow/error Compose E2E verification.
 
 Queries:
 

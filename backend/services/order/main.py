@@ -34,8 +34,6 @@ def create_app(
 
     @app.post("/orders")
     async def place_order(order: OrderRequest):
-        if order.scenario != "normal":
-            raise HTTPException(501, "Fault scenarios are implemented in M5")
         tracer = app.state.tracer
         root = get_current_span()
         order_id = "ord_" + secrets.token_hex(8)
