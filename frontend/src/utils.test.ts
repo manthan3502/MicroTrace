@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { duration, filterQuery, geometry, percent, readFilters, scale, ticks, utc, validMinimum } from './utils';
+import { duration, filterQuery, geometry, percent, readFilters, scale, serviceIdentity, ticks, utc, validMinimum } from './utils';
 import { root } from './test/fixtures';
 describe('approved formatting and waterfall geometry', () => {
+  it.each(['constructor', 'toString', '__proto__', 'custom-service'])('falls back safely for service %s', name => {
+    expect(serviceIdentity(name)).toEqual([name.slice(0, 1).toUpperCase(), 'other']);
+  });
+  it('preserves the approved known service identities', () => {
+    expect(serviceIdentity('order-service')).toEqual(['O', 'order']);
+    expect(serviceIdentity('payment-service')).toEqual(['P', 'payment']);
+    expect(serviceIdentity('notification-service')).toEqual(['N', 'notification']);
+  });
   it.each([[640, '640 µs'], [4200, '4.2 ms'], [135000, '135 ms'], [1240000, '1.24 s'], [0, '0 µs']])('formats %i', (value, expected) => {
     expect(duration(value as number)).toBe(expected);
   });

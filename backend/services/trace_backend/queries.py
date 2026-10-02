@@ -6,12 +6,20 @@ from sqlalchemy import BigInteger, Engine, case, cast, func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from microtrace_sdk.ids import valid_id
+from microtrace_sdk.models import reject_nul
 from services.trace_backend.database import get_engine
 from services.trace_backend.db_models import spans
 from services.trace_backend.reconstruction import reconstruct
 
 router = APIRouter()
 Database = Annotated[Engine, Depends(get_engine)]
+
+
+def service_filter(service: Annotated[str | None, Query(min_length=1, max_length=100)] = None):
+    try:
+        return reject_nul(service)
+    except ValueError:
+        raise HTTPException(422, "Invalid service filter") from None
 
 
 def list_traces(engine, service, status, min_duration_ms, limit, offset):
@@ -54,7 +62,7 @@ def list_traces(engine, service, status, min_duration_ms, limit, offset):
 @router.get("/api/v1/traces")
 def traces_list(
     engine: Database,
-    service: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    service: Annotated[str | None, Depends(service_filter)] = None,
     status: Literal["OK", "ERROR"] | None = None,
     min_duration_ms: Annotated[int | None, Query(ge=0, le=9223372036854775)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,

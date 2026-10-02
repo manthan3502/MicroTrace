@@ -12,6 +12,11 @@ function mock(items = [trace]) {
 beforeEach(() => window.history.replaceState(null, '', '/traces'));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('Trace List', () => {
+  it.each(['constructor', 'toString', '__proto__', 'custom-service'])('renders unknown participating service %s', async name => {
+    mock([{ ...trace, services: [name] }]); render(<TraceList />);
+    await screen.findByRole('link', { name: 'POST /orders' });
+    expect(document.querySelector('.service-other')).toHaveTextContent(name);
+  });
   it('shows loading', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
     render(<TraceList />); expect(screen.getByRole('status')).toHaveTextContent('Loading traces');

@@ -11,6 +11,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function panel() { return screen.getByRole('complementary', { name: 'Span Details' }); }
 describe('Trace Detail', () => {
+  it.each(['constructor', 'toString', '__proto__', 'custom-service'])('renders unknown service %s in rows and details', async name => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({ ...detail,
+      trace: { ...detail.trace, services: [name], span_count: 1 }, spans: [{ ...root, service_name: name }] })));
+    render(<TraceDetail traceId={id} />);
+    const row = await screen.findByRole('button', { name: `${name} POST /orders SERVER OK` });
+    expect(row.querySelector('.service-other')).toHaveTextContent(name);
+    expect(within(panel()).getByText(name)).toBeInTheDocument();
+  });
+  it('uses displayed non-quarter ticks for every row gridline', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({ ...detail,
+      trace: { ...detail.trace, duration_us: 920000 } })));
+    render(<TraceDetail traceId={id} />);
+    await screen.findByRole('complementary');
+    const anchors = [...document.querySelectorAll<HTMLElement>('.axis-tick')];
+    expect(anchors.map(t => t.textContent)).toEqual(['0 µs', '250 ms', '500 ms', '750 ms']);
+    const expected = [0, 250000, 500000, 750000].map(t => t / 920000 * 100);
+    expect(anchors.map(t => parseFloat(t.style.left))).toEqual(expected);
+    for (const timeline of document.querySelectorAll('.timeline')) {
+      const lines = [...timeline.querySelectorAll<HTMLElement>('.timeline-gridline')];
+      expect(lines.map(t => parseFloat(t.style.left))).toEqual(expected);
+      expect(lines.every(t => t.getAttribute('aria-hidden') === 'true')).toBe(true);
+    }
+  });
   it('renders API ordering, first selection, badges, shapes and depth', async () => {
     render(<TraceDetail traceId={id} />);
     const rows = await screen.findAllByRole('button', { pressed: true });

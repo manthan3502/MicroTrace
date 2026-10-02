@@ -48,5 +48,5 @@ export function serviceIdentity(name: string) {
     'order-service': ['O', 'order'], 'payment-service': ['P', 'payment'],
     'notification-service': ['N', 'notification'],
   };
-  return names[name] ?? [name.slice(0, 1).toUpperCase(), 'other'];
+  return Object.hasOwn(names, name) ? names[name] : [name.slice(0, 1).toUpperCase(), 'other'];
 }

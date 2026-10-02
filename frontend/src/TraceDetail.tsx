@@ -12,6 +12,7 @@ export default function TraceDetail({ traceId }: { traceId: string }) {
   const desiredReturn = new URLSearchParams(window.location.search).get('returnTo');
   const back = desiredReturn === '/traces' || desiredReturn?.startsWith('/traces?') ? desiredReturn : '/traces';
   const total = result ? scale(result.trace.duration_us, result.spans) : 1;
+  const timeTicks = ticks(total);
   const firstOrphan = result?.spans.find(s => s.is_orphan)?.span_id;
   return <main>
     <a className="back" href={back}>← Back to traces</a>
@@ -32,8 +33,8 @@ export default function TraceDetail({ traceId }: { traceId: string }) {
         <section className="waterfall" aria-label="Trace waterfall" aria-busy={resource.loading}>
           <p className="legend">SERVER █ handles a request · CLIENT ▭ calls another service · INTERNAL ▄ local work</p>
           <div className="waterfall-scroll"><div className="waterfall-grid">
-            <div className="waterfall-head"><span>Operation / Service</span><div className="axis">{ticks(total).map(t =>
-              <span key={t} style={{ left: `${t / total * 100}%` }}>{duration(t)}</span>)}</div><span>Duration</span><span>Status</span></div>
+            <div className="waterfall-head"><span>Operation / Service</span><div className="axis">{timeTicks.map(t =>
+              <span className="axis-tick" key={t} style={{ left: `${t / total * 100}%` }}><span className="axis-label">{duration(t)}</span></span>)}</div><span>Duration</span><span>Status</span></div>
             {result.spans.map(s => {
               const position = geometry(s, total);
               const [, tone] = serviceIdentity(s.service_name);
@@ -47,7 +48,7 @@ export default function TraceDetail({ traceId }: { traceId: string }) {
                     <span><Service name={s.service_name} /> <span className="kind">{s.span_kind}</span></span>
                     {s.is_orphan && <span className="incomplete">◌ ORPHAN</span>}
                   </span>
-                  <span className="timeline"><span className={`bar bar-${s.span_kind.toLowerCase()} service-${tone} ${s.status === 'ERROR' ? 'bar-error' : ''}`}
+                  <span className="timeline">{timeTicks.map(t => <span className="timeline-gridline" aria-hidden="true" key={t} style={{ left: `${t / total * 100}%` }} />)}<span className={`bar bar-${s.span_kind.toLowerCase()} service-${tone} ${s.status === 'ERROR' ? 'bar-error' : ''}`}
                     style={{ left: `clamp(0px, ${position.left}%, calc(100% - 3px))`, width: `max(3px, ${position.width}%)`, maxWidth: `max(3px, ${100 - position.left}%)` }}
                     title={`${s.service_name} · ${s.operation_name} · ${duration(s.duration_us)} · starts +${duration(s.start_offset_us)}`} /></span>
                   <span className="span-duration">{duration(s.duration_us)}{percent(s.duration_us, result.trace.duration_us) && <small>{percent(s.duration_us, result.trace.duration_us)}</small>}</span>

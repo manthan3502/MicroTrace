@@ -149,6 +149,35 @@ def test_invalid_queries_are_rejected(collector, params):
     assert collector.get("/api/v1/traces", params=params).status_code == 422
 
 
+@pytest.mark.parametrize("value", ["bad\x00name", "\x00", "服务\x00名称"])
+def test_nul_service_filter_rejected_before_database_access(
+    collector, db_engine, monkeypatch, value
+):
+    attempts = []
+
+    def unexpected_connection(*args, **kwargs):
+        attempts.append(True)
+        raise AssertionError("Invalid service filter must not access the database")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(db_engine, "connect", unexpected_connection)
+        response = collector.get("/api/v1/traces", params={"service": value})
+    assert attempts == []
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Invalid service filter"}
+    assert collector.get("/health").json() == {"status": "ok"}
+    assert collector.get("/api/v1/traces").status_code == 200
+
+
+def test_valid_unicode_service_filter_matches_persisted_span(collector):
+    name = "付款服务-é-🚀"
+    assert submit(collector, row(1, service=name)).status_code == 201
+    response = collector.get("/api/v1/traces", params={"service": name})
+    assert response.status_code == 200
+    assert [item["trace_id"] for item in response.json()["items"]] == [TRACE_ID]
+    assert response.json()["items"][0]["services"] == [name]
+
+
 def test_unknown_invalid_trace_and_empty_data(collector):
     assert collector.get("/api/v1/traces/" + TRACE_ID).status_code == 404
     assert collector.get("/api/v1/traces/invalid").status_code == 422
