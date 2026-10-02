@@ -1,10 +1,10 @@
 # MicroTrace
 
 A compact distributed tracing platform built from first principles. This checkout contains
-the **M5 scenarios and reliability** milestone: custom tracing primitives and the
+the **M6 dashboard** milestone: custom tracing primitives and the
 Order → Payment → Notification HTTP flow, PostgreSQL schema/migrations, and a minimal
 React shell. Bounded export, collector ingestion, PostgreSQL persistence, trace queries
-and safe reconstruction work. The dashboard remains a later milestone.
+and safe reconstruction work. The dashboard uses real backend data.
 
 ## Local stack
 
@@ -56,6 +56,12 @@ Each command prints the business result, trace ID and dashboard URL. Use --order
 --dashboard-url or --slow-ms when needed. The expected error demo exits successfully.
 Run `python scripts/check_scenarios.py` with the backend Python environment for real
 healthy/slow/error Compose E2E verification.
+
+Dashboard: `/traces` lists traces with URL-backed filters, manual Refresh and offset
+pagination. `/traces/:traceId` shows the API-ordered waterfall and Span Details.
+Select a span or its parent. SERVER bars are solid, CLIENT hollow and INTERNAL thin;
+errors have text, stripes and tint. Incomplete and orphan telemetry remains visible.
+Below 1100 px, the details panel stacks under the waterfall. No polling or extra pages.
 
 Queries:
 
