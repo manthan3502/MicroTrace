@@ -93,6 +93,13 @@ jobs:
       - run: docker compose exec -T trace-backend python - < scripts/check_gate_c.py
       - run: python scripts/check_scenarios.py
       - run: python scripts/check_system.py
+      - name: Switch to the six-container production stack
+        run: |
+          docker compose down
+          docker compose -f compose.production.yml up --build -d --wait --wait-timeout 180
+          docker compose -f compose.production.yml exec -T trace-backend alembic upgrade head
+      - name: Verify production edge, private ports and persistence
+        run: python scripts/check_production.py --check-restart --probe-private-ports
       - name: Shut down disposable stack
         if: always()
-        run: docker compose down
+        run: docker compose -f compose.production.yml down
