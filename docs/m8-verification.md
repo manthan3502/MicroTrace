@@ -1,9 +1,10 @@
 # M8 deployment verification
 
-Actual Ubuntu 24.04 EC2 deployment verified on **2026-10-04 (IST)** at
-[http://3.25.122.39/traces](http://3.25.122.39/traces). Gate E awaits the production
-verification checkpoint's hosted CI. The final M8 milestone commit follows that
-check; its hosted run must also pass before completion is reported.
+**Gate E: PASS.** Actual Ubuntu 24.04 EC2 deployment verified on **2026-10-04 (IST)**
+at [http://3.25.122.39/traces](http://3.25.122.39/traces). Deployment, browser,
+persistence, privacy, full regression and hosted production CI passed before the
+final named M8 milestone commit. Its exact hosted run is inspected again after
+push before final completion is reported.
 
 Prepared changes were preserved from HEAD 9ecf3a1de09d020157318d4d81d52f10df299c69.
 Previous local preparation on 2026-10-02 passed 194 backend, 75 integration and
@@ -42,6 +43,14 @@ fresh locked installations.
 | `ruff check backend scripts` / `ruff format --check backend scripts` | PASS; 49 files formatted |
 | Frontend nginx -t / production docker compose ps | PASS; config valid, all six healthy |
 | Local check_repository.py plus candidate/screenshot privacy scan | Checked before each push; exact noreply identity retained |
+
+After synchronizing/rebuilding from the exact committed Git archive, full QA was
+repeated: 194 backend tests passed in 30.36 s, 75 integration tests passed in
+19.81 s (119 deselected), and all 46 frontend tests plus lint/typecheck/build and
+Ruff passed. Both backend runs had zero skips and the same existing warning.
+Production scenarios/private-port/persistence smoke and Gate C also passed again
+after that reconstruction. This verifies the committed source, not only the
+initial transferred working-tree files.
 
 The production commands were `docker compose -f compose.production.yml config
 --quiet` and `docker compose -f compose.production.yml up --build -d --wait
@@ -93,7 +102,18 @@ Author/committer: Manthan <156163069+manthan3502@users.noreply.github.com>.
 No .env, key, credentials, personal email or cache is tracked. Changes concern
 production configuration, verification, docs and screenshots only.
 
-Hosted Backend, Frontend and Compose E2E must pass for the production verification
-checkpoint before creating the final named M8 milestone commit. The new Compose
-CI checks production edge/private ports/persistence. Its final milestone run will
-also be inspected on the exact commit; YAML alone does not establish completion.
+Production checkpoint 9a086030c295a788351c26dbeb4bd7e2e27c4e32 was pushed only
+after deployed acceptance passed. Its actual
+[hosted run 37155703510](https://github.com/manthan3502/MicroTrace/actions/runs/37155703510)
+completed successfully for Backend, Frontend and Compose E2E. Logs verified
+119 non-integration plus 75 integration tests, 46 frontend tests, Ruff/privacy,
+Gate C, real scenarios, collector/database outages, production private-port
+boundaries and exact PostgreSQL persistence. This meaningful checkpoint allowed
+CI acceptance before the approved final M8 milestone commit, without prematurely
+declaring the milestone complete.
+
+The final commit retains that already-verified runtime/configuration and records
+Gate E sign-off. Its hosted CI must also pass and its committed source archive
+must match the deployed files before the final completion report. The final run
+is available through [GitHub Actions](https://github.com/manthan3502/MicroTrace/actions/workflows/ci.yml).
+No completion is assumed from workflow YAML.

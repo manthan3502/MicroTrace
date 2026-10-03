@@ -2,8 +2,9 @@
 
 Deployed on the owner-approved Ubuntu 24.04 EC2 host on 2026-10-04 (IST):
 [public dashboard](http://3.25.122.39/traces). Host checks, external HTTP/private-port
-probes, real scenarios, browser QA and restart persistence passed. Final Gate E
-sign-off awaits hosted M8 CI. No instance or additional cloud resource was created,
+probes, real scenarios, browser QA and restart persistence passed. Gate E acceptance
+passed, including [hosted production QA](https://github.com/manthan3502/MicroTrace/actions/runs/37155703510).
+No instance or additional cloud resource was created,
 and no security-group rules were changed. Never paste credentials or private keys.
 
 Use one Linux EC2 VM with Docker and Compose v2 or newer. Allow enough RAM for PostgreSQL,

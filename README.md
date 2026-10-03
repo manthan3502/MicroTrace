@@ -12,7 +12,8 @@ production-scale observability platform.
 
 **Live demo:** [Trace explorer](http://3.25.122.39/traces), served by Nginx on the
 approved Linux EC2 host. Screenshots show real telemetry stored on that host.
-Deployment/browser checks passed; final Gate E sign-off awaits hosted M8 CI.
+Deployment, browser, persistence and full QA passed on 2026-10-04 (IST), including
+hosted production Compose verification. Gate E is verified.
 
 ```mermaid
 flowchart LR
