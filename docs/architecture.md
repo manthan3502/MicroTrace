@@ -66,12 +66,15 @@ gaps/cycles mark it incomplete independently of status. React renders backend
 ordering/offsets, with shared coordinate bounds for ticks, gridlines and bars.
 SERVER is solid, CLIENT hollow, INTERNAL thin; errors also use text/patterns.
 
-## Scenarios and interview checkpoints
+## Scenarios and design rationale
 
 Normal gives eight OK spans. Slow Payment delays process-payment, naturally
 expanding its SERVER/caller CLIENT/root. Payment error gives five spans, four
 ERROR spans, Order 502 and no Notification. Injection is request-scoped.
 
-Explain CLIENT → SERVER parenting, ContextVar reset, monotonic duration,
-best-effort export, absent parent FK, arrival-order independence and why
-structural incompleteness differs from ERROR.
+The design preserves causal CLIENT → SERVER parenting and restores ContextVar
+state between operations. Monotonic duration measures local elapsed time;
+best-effort export isolates business traffic from telemetry delivery failures.
+The absent parent foreign key permits child-first ingestion, while parent-ID
+reconstruction makes hierarchy independent of arrival order. Structural
+incompleteness remains distinct from business ERROR status.

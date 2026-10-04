@@ -10,11 +10,11 @@ Follow one request across multiple services — from W3C Trace Context propagati
 
 </div>
 
-**Status:** Feature-complete for the approved portfolio scope. Deployment and Gate E
-were verified on AWS EC2; the instance is currently stopped. The screenshots below
+**Status:** MicroTrace is a complete portfolio-scale distributed tracing platform
+with verified local and AWS EC2 deployment. The instance is currently stopped. The screenshots below
 show the actual deployed application. Run locally to explore it.
 
-**Contents:** [Screenshots](#screenshots) · [Capabilities](#what-microtrace-does) · [Request flow](#one-request-end-to-end) · [Architecture](#system-architecture) · [Engineering decisions](#engineering-decisions) · [Run locally](#run-locally) · [Testing](#testing-and-quality-gates) · [Deployment](#deployment) · [Limitations](#known-limitations)
+**Contents:** [Screenshots](#screenshots) · [Capabilities](#what-microtrace-does) · [Request flow](#one-request-end-to-end) · [Architecture](#system-architecture) · [Engineering decisions](#engineering-decisions) · [Run locally](#run-locally) · [Testing](#testing-and-verification) · [Deployment](#deployment) · [Limitations](#known-limitations)
 
 ---
 
@@ -384,11 +384,14 @@ MicroTrace/
 │   └── tests/
 │
 ├── frontend/                    # React trace explorer and waterfall
-├── scripts/                     # demo, health, Gate C, scenario and QA checks
-├── docs/                        # architecture, deployment and verification docs
+├── scripts/                     # demo, health, reconstruction, scenario and QA checks
+├── docs/                        # architecture, deployment and limitations
+│   ├── screenshots/             # real deployed dashboard captures
+│   └── verification/            # detailed engineering verification records
 ├── .github/workflows/ci.yml     # backend, frontend and Compose E2E CI
 ├── docker-compose.yml           # local stack
 ├── compose.production.yml       # production single-host stack
+├── LICENSE                      # MIT License
 └── README.md
 ```
 
@@ -470,9 +473,10 @@ on data you want to keep.
 
 ---
 
-## Testing and quality gates
+## Testing and verification
 
-MicroTrace was built milestone-by-milestone with explicit acceptance gates.
+Automated tests and end-to-end checks validate tracing, storage, visualization
+and deployment behavior.
 
 | Check | Verified result |
 |---|---:|
@@ -527,18 +531,18 @@ npm run build
 
 Hosted [GitHub Actions](https://github.com/manthan3502/MicroTrace/actions/workflows/ci.yml)
 runs Backend, Frontend and Compose E2E, including production boundaries and restart
-persistence. [Final M8 run](https://github.com/manthan3502/MicroTrace/actions/runs/37158704356)
-passed all three jobs on the final milestone commit.
+persistence. The [verified hosted run](https://github.com/manthan3502/MicroTrace/actions/runs/37158704356)
+passed all three jobs.
 
-### Engineering gates
+### Verification highlights
 
-| Gate | What it proves |
+| Area | Verified behavior |
 |---|---|
-| **Gate A** | tracing IDs, span lifecycle, ContextVar isolation, cancellation and context restoration |
-| **Gate B** | real HTTP propagation and correct CLIENT → SERVER parent relationships |
-| **Gate C** | service → exporter → collector → PostgreSQL → query/reconstruction pipeline |
-| **Gate D** | healthy, slow and error telemetry displayed correctly in the real dashboard |
-| **Gate E** | real Linux EC2 deployment, private/public route boundaries, persistence and final CI |
+| Tracing core | IDs, span lifecycle, ContextVar isolation, cancellation and context restoration |
+| Cross-service propagation | Real HTTP propagation and correct CLIENT → SERVER parent relationships |
+| Persistence and reconstruction | Service → exporter → collector → PostgreSQL → query/reconstruction pipeline |
+| Dashboard | Healthy, slow and error telemetry displayed correctly in the real dashboard |
+| Deployment | Real Linux EC2 deployment, private/public route boundaries, persistence and hosted CI |
 
 Additional adversarial verification covers concurrent requests, concurrent duplicate ingestion, collector outage, PostgreSQL outage, queue overflow, child-before-parent ingestion, orphans, cycles, deep traces, randomized arrival order, restart persistence, and privacy canaries.
 
@@ -570,7 +574,7 @@ The verified EC2 instance is currently stopped to avoid unnecessary cloud cost.
 No permanent live-demo URL is advertised; the screenshots retain the deployed
 healthy, slow and error scenarios.
 
-See [deployment instructions](docs/deployment.md), [architecture and interview notes](docs/architecture.md), [limitations](docs/limitations.md), and [M8 verification](docs/m8-verification.md) for deployment and design details.
+See [deployment instructions](docs/deployment.md), [architecture notes](docs/architecture.md), [limitations](docs/limitations.md), and [deployment verification](docs/verification/m8-verification.md) for deployment and design details.
 
 ---
 
@@ -615,14 +619,11 @@ These are explicit scope choices rather than hidden claims.
 ## Project status
 
 ```text
-M0–M8       PASS
-Gate A      PASS
-Gate B      PASS
-Gate C      PASS
-Gate D      PASS
-Gate E      PASS
-Hosted CI   PASS
-Deployment  Verified on AWS EC2
+Backend tests       194 passed (includes 75 PostgreSQL integration tests)
+Frontend tests      46 passed
+GitHub Actions      PASS
+Docker Compose E2E  PASS
+Deployment          Verified on AWS EC2
 ```
 
-MicroTrace is feature-complete for its approved portfolio scope.
+MicroTrace is complete for its documented scope and available under the [MIT License](LICENSE).
